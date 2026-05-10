@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HD-OS 98 - Humanidades Digitais</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- PapaParse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- FontAwesome para os ícones "retro" -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Tipografia Retro */
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Tahoma', 'Segoe UI', sans-serif;
+            user-select: none;
+        }
+
+        /* DOS Boot Screen */
+        #dos-screen {
+            background-color: #000;
+            color: #ccc;
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            z-index: 999999;
+        }
+        .dos-cursor { animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Estética Windows 98 */
+        .desktop-bg {
+            background-color: #008080;
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyIiBoZWlnaHQ9IjIiPgo8cmVjdCB3aWR0aD0iMiIgaGVpZ2h0PSIyIiBmaWxsPSIjMDA4MDgwIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDc1NzUiLz4KPC9zdmc+');
+        }
+
+        .win-border-outset {
+            border-top: 2px solid #dfdfdf; border-left: 2px solid #dfdfdf;
+            border-right: 2px solid #000; border-bottom: 2px solid #000;
+            box-shadow: inset -1px -1px #808080, inset 1px 1px #fff;
+            background-color: #c0c0c0;
+        }
+
+        .win-border-inset {
+            border-top: 2px solid #808080; border-left: 2px solid #808080;
+            border-right: 2px solid #fff; border-bottom: 2px solid #fff;
+            box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #000;
+            background-color: #fff;
+        }
+
+        .win-titlebar {
+            background: linear-gradient(90deg, #000080, #1084d0);
+            color: white; font-weight: bold; padding: 2px 4px;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: default;
+        }
+        
+        .win-titlebar.inactive { background: linear-gradient(90deg, #808080, #b5b5b5); }
+
+        .win-btn {
+            background-color: #c0c0c0;
+            border-top: 1px solid #fff; border-left: 1px solid #fff;
+            border-right: 1px solid #000; border-bottom: 1px solid #000;
+            box-shadow: inset -1px -1px #808080;
+            font-weight: bold; padding: 0 4px; cursor: pointer; color: black;
+            font-size: 12px; height: 18px; display: flex; align-items: center;
+            justify-content: center; min-width: 18px;
+        }
+        .win-btn:active {
+            border-top: 1px solid #000; border-left: 1px solid #000;
+            border-right: 1px solid #fff; border-bottom: 1px solid #fff;
+            box-shadow: inset 1px 1px #808080; padding-top: 2px; padding-left: 2px;
+        }
+
+        /* Taskbar */
+        .taskbar {
+            background-color: #c0c0c0; border-top: 2px solid #fff;
+            box-shadow: 0 -1px 2px rgba(0,0,0,0.2); height: 34px;
+            display: flex; align-items: center; padding: 0 4px;
+            z-index: 100000; position: fixed; bottom: 0; width: 100%;
+        }
+
+        .start-btn { display: flex; align-items: center; font-weight: bold; padding: 2px 6px; height: 26px; margin-right: 10px; }
+
+        .taskbar-clock {
+            border-top: 1px solid #808080; border-left: 1px solid #808080;
+            border-right: 1px solid #fff; border-bottom: 1px solid #fff;
+            padding: 2px 8px; font-size: 11px; margin-left: auto;
+        }
+
+        /* Desktop Icons */
+        .desktop-icon, .file-icon {
+            display: flex; flex-direction: column; align-items: center;
+            width: 76px; margin: 8px; cursor: pointer; text-align: center;
+        }
+        .desktop-icon:hover .icon-text, .file-icon:hover .icon-text {
+            background-color: #000080; color: white; border: 1px dotted white;
+        }
+        .icon-text {
+            color: white; font-size: 11px; padding: 2px; margin-top: 4px;
+            text-shadow: 1px 1px 0 #000; word-wrap: break-word; line-height: 1.1; max-width: 100%;
+        }
+        .file-icon .icon-text { color: black; text-shadow: none; }
+
+        /* Janela Normal */
+        .window { position: absolute; display: flex; flex-direction: column; min-width: 300px; min-height: 200px; }
+        .window-content { padding: 8px; flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .notepad-textarea {
+            width: 100%; flex-grow: 1; resize: none; outline: none;
+            font-family: 'Courier New', Courier, monospace; font-size: 13px;
+            padding: 6px; overflow-y: auto;
+        }
+
+        .win-menubar {
+            display: flex; gap: 12px; padding: 2px 8px; font-size: 12px;
+            border-bottom: 1px solid #808080; box-shadow: 0 1px 0 #fff; margin-bottom: 4px; background: #c0c0c0;
+        }
+        .win-menubar span { cursor: pointer; }
+        .win-menubar span:hover { background-color: #000080; color: white; }
+        .win-menubar u { text-decoration: underline; text-underline-offset: 2px; }
+
+        /* Game Specific Styles */
+        .defrag-block { width: 15px; height: 15px; border: 1px solid #808080; display: inline-block; background-color: #fff; margin: 1px; }
+    </style>
+</head>
+<body class="desktop-bg min-h-screen">
+
+    <!-- ECRÃ DE BOOT (MS-DOS) -->
+    <div id="dos-screen" class="absolute inset-0 flex flex-col p-8 z-[999999]">
+        <div class="mb-4">
+            <p>System BIOS (C)1998 HD-OS Megatrends Inc.</p>
+            <p>HD-OS Digital Humanities Kernel v1.0.4</p>
+            <p>Main Processor: Neural Network Processor, 64MHz</p>
+            <p>Memory Testing: 65536K OK</p>
+        </div>
+        <div class="mb-8">
+            <p>Detecting Primary Master ... None</p>
+            <p>Detecting Primary Slave  ... None</p>
+        </div>
+        <div class="mt-8 text-yellow-300">
+            <p>Disk boot failure, insert system disk and press enter.</p>
+            <p class="mt-4 text-white">&gt;&gt; Arraste o ficheiro <span class="text-green-400">humanidades_digitais_def.csv</span> para aqui para iniciar o sistema operacional.</p>
+        </div>
+        <input type="file" id="file-input" accept=".csv" class="hidden">
+        <div id="drop-zone" class="absolute inset-0 cursor-pointer"></div>
+    </div>
+
+    <!-- AMBIENTE DE TRABALHO -->
+    <div id="desktop" class="absolute inset-0 pt-4 pl-4 flex flex-col flex-wrap content-start gap-2" style="padding-bottom: 40px; display: none;"></div>
+
+    <!-- TASKBAR -->
+    <div class="taskbar select-none" id="taskbar" style="display: none;">
+        <div class="start-btn win-btn win-border-outset hover:font-bold cursor-pointer" onclick="alert('HD-OS 98\n\nSistema criado para visualização interativa.\n10 Ficheiros .EXE carregados com sucesso!')">
+            <i class="fa-brands fa-windows mr-1 text-blue-800"></i> <span class="font-bold">Iniciar</span>
+        </div>
+        <div class="h-6 w-px bg-gray-500 shadow-[1px_0_0_#fff] mx-1"></div>
+        <div id="taskbar-windows" class="flex-grow flex gap-1 px-2 overflow-hidden"></div>
+        <div class="taskbar-clock flex items-center gap-2">
+            <i class="fa-solid fa-volume-low text-gray-600"></i>
+            <span id="clock-time">12:00</span>
+        </div>
+    </div>
+
+    <!-- CONTENTOR DE JANELAS -->
+    <div id="windows-container" class="absolute inset-0 pointer-events-none" style="display: none;"></div>
+
+    <!-- AUDIO DE ARRANQUE -->
+    <audio id="win98-sound" src="https://www.myinstants.com/media/sounds/windows-98-startup.mp3" preload="auto"></audio>
+
+    <script>
+        // --- RELÓGIO DA TASKBAR ---
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock-time').innerText = now.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'});
+        }
+        setInterval(updateClock, 1000); updateClock();
+
+        // --- SISTEMA DE BOOT E UPLOAD ---
+        const dosScreen = document.getElementById('dos-screen');
+        const desktop = document.getElementById('desktop');
+        const taskbar = document.getElementById('taskbar');
+        const windowsContainer = document.getElementById('windows-container');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const bootSound = document.getElementById('win98-sound');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dosScreen.style.backgroundColor = '#111'; });
+        dropZone.addEventListener('dragleave', () => { dosScreen.style.backgroundColor = '#000'; });
+        dropZone.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) startBootSequence(e.dataTransfer.files[0]); });
+        fileInput.addEventListener('change', e => { if (e.target.files.length) startBootSequence(e.target.files[0]); });
+
+        function startBootSequence(file) {
+            if (!file.name.endsWith('.csv')) { alert('Erro: Formato de disco inválido.'); return; }
+            dosScreen.innerHTML = `
+                <div class="p-8 font-['VT323'] text-lg text-white">
+                    <p>Loading HD-OS...</p>
+                    <p class="mt-2" id="boot-progress">Parsing system files [                    ]</p>
+                </div>
+            `;
+            Papa.parse(file, {
+                header: true, delimiter: ";", skipEmptyLines: true,
+                complete: function(results) {
+                    document.getElementById('boot-progress').innerText = "Parsing system files [||||||||||||||||||||] DONE";
+                    setTimeout(() => { processDataAndBoot(results.data); }, 500);
+                }
+            });
+        }
+
+        // --- VARIÁVEIS DO SISTEMA ---
+        let dataByInst = {};
+        let windowCounter = 100;
+        const windowsList = {};
+
+        function processDataAndBoot(rawData) {
+            // Toca o som de arranque do Windows 98
+            bootSound.volume = 0.5;
+            bootSound.play().catch(e => console.log('O navegador bloqueou o áudio automático.'));
+
+            dosScreen.style.display = 'none';
+            desktop.style.display = 'flex';
+            taskbar.style.display = 'flex';
+            windowsContainer.style.display = 'block';
+
+            rawData.forEach((row, i) => {
+                if (!row.title && !row.identifier) return;
+                let inst = row.institution_normalized || row.origin_repository || 'Desconhecida';
+                if (inst.toLowerCase().includes('nova de lisboa') || inst.toLowerCase().includes('unl')) inst = 'ISCTE';
+
+                if (!dataByInst[inst]) dataByInst[inst] = [];
+                
+                let author = row.primary_author || row.authors || 'Autor Desconhecido';
+                let year = row.year || row.result_year || 'S/D';
+                let yearMatch = String(year).match(/(?:19|20)\d{2}/);
+                
+                dataByInst[inst].push({
+                    id: i,
+                    title: row.title || 'Documento sem título',
+                    author: author,
+                    year: yearMatch ? yearMatch[0] : 'S/D',
+                    type: row.document_type_normalized || row.document_type || 'Outro',
+                    abstract: row.abstract || 'Nenhum resumo disponível no sistema.',
+                    pages: row.pdf_page_count || '?'
+                });
+            });
+
+            createDesktopIcons();
+        }
+
+        function createDesktopIcons() {
+            let sortedInsts = Object.entries(dataByInst).sort((a,b) => b[1].length - a[1].length);
+            let topInsts = sortedInsts.slice(0, 10);
+            
+            addDesktopIcon('O Meu Computador', 'fa-solid fa-computer', () => {
+                openNotepad('Sistema', 'Informação do Sistema', `HD-OS 98\nTotal de Instituições: ${sortedInsts.length}\nSistema a funcionar corretamente.\n\nDICA: Procura pelo ficheiro .EXE dentro de cada pasta!`);
+            });
+
+            topInsts.forEach(([inst, docs], index) => {
+                addDesktopIcon(inst, 'fa-solid fa-folder text-yellow-400', () => {
+                    openFolderWindow(inst, docs, index);
+                });
+            });
+
+            if (sortedInsts.length > 10) {
+                addDesktopIcon('Outras Redes', 'fa-solid fa-network-wired text-blue-700', () => {
+                    let otherDocs = [];
+                    sortedInsts.slice(10).forEach(([inst, docs]) => { otherDocs.push(...docs); });
+                    openFolderWindow('Outras Instituições', otherDocs, 10);
+                });
+            }
+            
+            addDesktopIcon('Reciclagem', 'fa-solid fa-trash-can text-gray-300', () => {
+                openNotepad('Reciclagem', 'Erro', 'A Reciclagem está vazia.');
+            });
+        }
+
+        function addDesktopIcon(name, faClass, onDblClick) {
+            let el = document.createElement('div');
+            el.className = 'desktop-icon';
+            el.ondblclick = onDblClick;
+            let clicks = 0;
+            el.onclick = () => {
+                clicks++;
+                if (clicks === 1) { setTimeout(() => { clicks = 0; }, 400); } 
+                else { onDblClick(); clicks = 0; }
+            };
+            el.innerHTML = `<i class="${faClass} text-4xl drop-shadow-md mb-1"></i><span class="icon-text">${name}</span>`;
+            desktop.appendChild(el);
+        }
+
+        // --- SISTEMA DE JANELAS (WINDOW MANAGER) ---
+        function bringToFront(winId) {
+            windowCounter++;
+            const win = document.getElementById(winId);
+            if(win) win.style.zIndex = windowCounter;
+            
+            document.querySelectorAll('.win-titlebar').forEach(tb => tb.classList.add('inactive'));
+            if(win) win.querySelector('.win-titlebar').classList.remove('inactive');
+
+            document.querySelectorAll('.taskbar-btn').forEach(btn => {
+                btn.style.boxShadow = 'inset -1px -1px #808080'; btn.style.borderTop = '1px solid #fff'; btn.style.borderLeft = '1px solid #fff'; btn.style.backgroundColor = '#c0c0c0';
+            });
+            const tbtn = document.getElementById(`tbtn-${winId}`);
+            if(tbtn) {
+                tbtn.style.boxShadow = 'inset 1px 1px #808080'; tbtn.style.borderTop = '1px solid #000'; tbtn.style.borderLeft = '1px solid #000'; tbtn.style.backgroundColor = '#d4d4d4';
+            }
+        }
+
+        function closeWindow(winId) {
+            const win = document.getElementById(winId);
+            if(win) win.remove();
+            const tbtn = document.getElementById(`tbtn-${winId}`);
+            if(tbtn) tbtn.remove();
+            delete windowsList[winId];
+        }
+
+        function minimizeWindow(winId) {
+            const win = document.getElementById(winId);
+            if(win) { win.dataset.display = win.style.display; win.style.display = 'none'; }
+        }
+
+        function restoreWindow(winId) {
+            const win = document.getElementById(winId);
+            if(win) { win.style.display = 'flex'; bringToFront(winId); }
+        }
+
+        function createWindowBase(id, title, iconClass, width, height, isFolder = false, bgColor = '#fff') {
+            if(windowsList[id]) { restoreWindow(id); return null; }
+
+            const win = document.createElement('div');
+            win.id = id; win.className = `window win-border-outset pointer-events-auto shadow-xl`;
+            win.style.width = width; win.style.height = height;
+            
+            let offset = (Object.keys(windowsList).length * 25) % 150 + 40;
+            win.style.left = offset + 'px'; win.style.top = offset + 'px';
+
+            win.innerHTML = `
+                <div class="win-titlebar cursor-move" id="${id}-header">
+                    <div class="flex items-center gap-1 overflow-hidden"><i class="${iconClass} text-sm"></i><span class="truncate pr-2">${title}</span></div>
+                    <div class="flex gap-1"><button class="win-btn" onclick="minimizeWindow('${id}')">_</button><button class="win-btn font-bold" onclick="closeWindow('${id}')">X</button></div>
+                </div>
+                ${isFolder ? `<div class="win-menubar"><span><u>F</u>icheiro</span><span><u>E</u>ditar</span><span><u>V</u>er</span><span>A<u>j</u>uda</span></div>` : ''}
+                <div class="window-content win-border-inset relative" id="${id}-content" style="background-color: ${bgColor};"></div>
+            `;
+
+            win.onmousedown = () => bringToFront(id);
+            windowsContainer.appendChild(win);
+            windowsList[id] = true;
+
+            const tbtn = document.createElement('div');
+            tbtn.id = `tbtn-${id}`; tbtn.className = `taskbar-btn win-btn win-border-outset flex items-center gap-1 cursor-pointer truncate max-w-[150px] flex-grow-0`;
+            tbtn.innerHTML = `<i class="${iconClass}"></i> <span class="truncate">${title}</span>`;
+            tbtn.onclick = () => {
+                const w = document.getElementById(id);
+                if(w.style.display === 'none') restoreWindow(id);
+                else if (w.style.zIndex == windowCounter) minimizeWindow(id);
+                else bringToFront(id);
+            };
+            document.getElementById('taskbar-windows').appendChild(tbtn);
+
+            makeDraggable(win, document.getElementById(`${id}-header`));
+            bringToFront(id);
+            return win;
+        }
+
+        // --- LÓGICA DE EXPLORADOR DE FICHEIROS ---
+        function openFolderWindow(instName, docs, folderIndex) {
+            let safeId = 'folder-' + instName.replace(/[^a-zA-Z0-9]/g, '');
+            let win = createWindowBase(safeId, `C:\\Universidades\\${instName}`, 'fa-solid fa-folder-open text-yellow-400', '600px', '400px', true);
+            if(!win) return;
+
+            const content = document.getElementById(`${safeId}-content`);
+            content.style.display = 'flex'; content.style.flexWrap = 'wrap'; content.style.alignContent = 'flex-start'; content.style.overflowY = 'auto';
+
+            // O JOGO (Geração Dinâmica de Dados)
+            let gameIndex = folderIndex % 10;
+            let rawGameId = 'game-' + gameIndex + '-' + instName.replace(/[^a-zA-Z0-9]/g, '');
+            let gameData = getGameData(gameIndex, instName, rawGameId);
+            
+            let gameIcon = document.createElement('div');
+            gameIcon.className = 'file-icon border border-transparent hover:border-gray-300';
+            gameIcon.innerHTML = `
+                <i class="fa-solid fa-microchip text-4xl text-purple-700 mb-1 drop-shadow-sm"></i>
+                <span class="icon-text font-bold !text-blue-900">${gameData.filename}</span>
+            `;
+            let clicks = 0;
+            gameIcon.onclick = () => {
+                clicks++;
+                if (clicks === 1) { setTimeout(() => { clicks = 0; }, 400); } 
+                else { openGameWindow(gameData, instName, rawGameId); clicks = 0; }
+            };
+            content.appendChild(gameIcon);
+
+            // Documentos
+            const docsToShow = docs.slice(0, 150);
+            docsToShow.forEach(doc => {
+                let iconEl = document.createElement('div');
+                iconEl.className = 'file-icon';
+                
+                let fileIconClass = 'fa-solid fa-file-lines text-blue-600';
+                let typeLower = doc.type.toLowerCase();
+                if(typeLower.includes('tese') || typeLower.includes('disserta')) fileIconClass = 'fa-solid fa-book text-red-800';
+                if(typeLower.includes('livro')) fileIconClass = 'fa-solid fa-file-pdf text-red-500';
+
+                let shortTitle = doc.title.substring(0, 25) + '...';
+                iconEl.innerHTML = `<i class="${fileIconClass} text-3xl mb-1"></i><span class="icon-text">${shortTitle}</span>`;
+
+                let dClicks = 0;
+                iconEl.onclick = () => {
+                    dClicks++;
+                    if (dClicks === 1) { setTimeout(() => { dClicks = 0; }, 400); } 
+                    else { openNotepad('doc-' + doc.id, doc.title, formatAbstract(doc)); dClicks = 0; }
+                };
+                content.appendChild(iconEl);
+            });
+
+            if(docs.length > 150) {
+                let msg = document.createElement('p'); msg.className = 'w-full text-xs text-gray-500 p-2 font-bold';
+                msg.innerText = `+ Mostrando 150 de ${docs.length} objetos (Para poupar RAM).`;
+                content.appendChild(msg);
+            }
+        }
+
+        // --- BLOCO DE NOTAS ---
+        function formatAbstract(doc) {
+            return `=====================================================
+TESE/DOCUMENTO VIEWER 98
+=====================================================
+
+TÍTULO: ${doc.title}
+AUTOR(ES): ${doc.author}
+ANO: ${doc.year}
+TIPO: ${doc.type}
+PÁGINAS: ${doc.pages}
+
+-----------------------------------------------------
+RESUMO:
+-----------------------------------------------------
+${doc.abstract}
+`;
+        }
+
+        function openNotepad(id, title, text) {
+            let safeTitle = title.substring(0, 20) + ' - Bloco de Notas';
+            let win = createWindowBase(id, safeTitle, 'fa-solid fa-clipboard text-blue-500', '500px', '450px', true);
+            if(!win) return;
+            const content = document.getElementById(`${id}-content`);
+            content.style.padding = '0';
+            content.innerHTML = `<textarea class="notepad-textarea" readonly>${text}</textarea>`;
+        }
+
+        // --- DEFINIÇÃO DOS 10 JOGOS / APLICATIVOS CREATIVOS (GERADOS DINAMICAMENTE) ---
+        function getGameData(index, instName, id) {
+            const shortInst = instName.substring(0, 10).toUpperCase().replace(/\s/g, '_');
+            
+            // CORREÇÃO DOS EVENTOS: Substituir hífenes e caracteres não alfanuméricos por sublinhados para os nomes das funções JS globais
+            const fnId = id.replace(/[^a-zA-Z0-9]/g, '_'); 
+
+            const allGames = [
+                {
+                    filename: `MINAS_${shortInst}.EXE`, title: `Campo Minado: ${instName}`, color: '#c0c0c0',
+                    html: `<div class="flex flex-col h-full items-center justify-center p-2">
+                        <p id="mina-msg-${id}" class="mb-2 font-bold text-sm">Cuidado com os chumbos!</p>
+                        <div id="mina-grid-${id}" class="grid grid-cols-5 gap-0 border-2 border-inset border-gray-500 bg-gray-300 shadow-md"></div>
+                    </div>`,
+                    init: () => {
+                        const grid = document.getElementById(`mina-grid-${id}`);
+                        let mines = [];
+                        let safeClicked = 0;
+                        let gameOver = false;
+                        
+                        // Plantar 5 minas
+                        while(mines.length < 5) {
+                            let r = Math.floor(Math.random() * 25);
+                            if(mines.indexOf(r) === -1) mines.push(r);
+                        }
+
+                        window[`clickMina_${fnId}`] = (i) => {
+                            if(gameOver) return;
+                            let btn = document.getElementById(`btn-${id}-${i}`);
+                            if(btn.disabled) return;
+                            
+                            if(mines.includes(i)) {
+                                btn.innerHTML = '💣'; btn.style.backgroundColor = 'red';
+                                document.getElementById(`mina-msg-${id}`).innerText = 'BUM! Chumbaste na Cadeira!';
+                                document.getElementById(`mina-msg-${id}`).style.color = 'red';
+                                gameOver = true;
+                                // Revelar todas as minas
+                                mines.forEach(m => {
+                                    let b = document.getElementById(`btn-${id}-${m}`);
+                                    b.innerHTML = '💣'; b.style.backgroundColor = 'red';
+                                });
+                            } else {
+                                btn.innerHTML = 'V'; btn.style.backgroundColor = '#90ee90';
+                                btn.style.border = '1px solid #fff';
+                                btn.disabled = true;
+                                safeClicked++;
+                                // Condição de Vitória (Clicou nas 20 casas seguras)
+                                if(safeClicked === 20) {
+                                    document.getElementById(`mina-msg-${id}`).innerText = 'Parabéns! Concluíste o curso!';
+                                    document.getElementById(`mina-msg-${id}`).style.color = 'green';
+                                    gameOver = true;
+                                }
+                            }
+                        };
+                        
+                        // Gerar Grelha 5x5
+                        for(let i=0; i<25; i++) {
+                            grid.innerHTML += `<button class="w-8 h-8 font-bold text-black border-2 border-outset border-white bg-gray-300 cursor-pointer flex justify-center items-center" id="btn-${id}-${i}" onclick="clickMina_${fnId}(${i})"></button>`;
+                        }
+                    }
+                },
+                {
+                    filename: `GALO_${shortInst}.EXE`, title: `Galo: Tu vs Reitor (${shortInst})`, color: '#c0c0c0',
+                    html: `<div class="flex flex-col items-center justify-center h-full p-2">
+                        <div id="galo-board-${id}" class="grid grid-cols-3 gap-1 bg-black p-1 border-2 border-outset border-gray-400"></div>
+                        <p id="galo-msg-${id}" class="mt-4 font-bold">A tua vez (X).</p>
+                    </div>`,
+                    init: () => {
+                        const board = document.getElementById(`galo-board-${id}`);
+                        let cells = [];
+                        let gameOver = false;
+                        
+                        const checkWin = (player) => {
+                            const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+                            return wins.some(c => cells[c[0]].innerText === player && cells[c[1]].innerText === player && cells[c[2]].innerText === player);
+                        };
+
+                        window[`galoClick_${fnId}`] = (i) => {
+                            if(cells[i].innerText !== '' || gameOver) return;
+                            
+                            // Jogada do Jogador
+                            cells[i].innerText = 'X';
+                            cells[i].style.color = 'blue';
+                            
+                            if(checkWin('X')) { 
+                                document.getElementById(`galo-msg-${id}`).innerText = 'Venceste a burocracia do Reitor!'; 
+                                document.getElementById(`galo-msg-${id}`).style.color = 'green';
+                                gameOver = true; return; 
+                            }
+                            
+                            let empty = cells.filter(c => c.innerText === '');
+                            if(empty.length === 0) { 
+                                document.getElementById(`galo-msg-${id}`).innerText = 'Empate Académico!'; 
+                                gameOver = true; return; 
+                            }
+                            
+                            document.getElementById(`galo-msg-${id}`).innerText = 'O Reitor está a pensar...';
+                            
+                            // Jogada da Máquina (Reitor)
+                            setTimeout(() => {
+                                if(gameOver) return;
+                                empty = cells.filter(c => c.innerText === '');
+                                let pick = empty[Math.floor(Math.random()*empty.length)];
+                                pick.innerText = 'O';
+                                pick.style.color = 'red';
+                                
+                                if(checkWin('O')) { 
+                                    document.getElementById(`galo-msg-${id}`).innerText = 'O Reitor chumbou-te!'; 
+                                    document.getElementById(`galo-msg-${id}`).style.color = 'red';
+                                    gameOver = true; return; 
+                                }
+                                document.getElementById(`galo-msg-${id}`).innerText = 'A tua vez (X).';
+                            }, 500);
+                        };
+
+                        for(let i=0; i<9; i++) {
+                            let btn = document.createElement('button');
+                            btn.className = 'w-14 h-14 bg-white font-bold text-2xl cursor-pointer';
+                            btn.onclick = () => window[`galoClick_${fnId}`](i);
+                            board.appendChild(btn);
+                            cells.push(btn);
+                        }
+                    }
+                },
+                {
+                    filename: `IDLE_${shortInst}.EXE`, title: `Descanso de Ecrã: ${instName}`, color: '#000',
+                    html: `<div class="relative w-full h-full overflow-hidden text-white font-bold text-xl" id="dvd-area-${id}">
+                        <div id="dvd-logo-${id}" class="absolute drop-shadow-md whitespace-nowrap px-2" style="text-shadow: 2px 2px 0 #fff;">${instName}</div>
+                    </div>`,
+                    init: () => {
+                        const logo = document.getElementById(`dvd-logo-${id}`);
+                        const area = document.getElementById(`dvd-area-${id}`);
+                        if(!logo || !area) return;
+                        
+                        let x=10, y=10, dx=0.8, dy=0.8; 
+                        const colors = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff'];
+                        
+                        function animate() {
+                            if(!document.getElementById(`dvd-logo-${id}`)) return; 
+                            x += dx; y += dy;
+                            
+                            if(x <= 0 || x >= area.clientWidth - logo.clientWidth) { 
+                                dx = -dx; x = x<=0 ? 0 : area.clientWidth - logo.clientWidth; 
+                                logo.style.color = colors[Math.floor(Math.random()*colors.length)]; 
+                            }
+                            if(y <= 0 || y >= area.clientHeight - logo.clientHeight) { 
+                                dy = -dy; y = y<=0 ? 0 : area.clientHeight - logo.clientHeight; 
+                                logo.style.color = colors[Math.floor(Math.random()*colors.length)]; 
+                            }
+                            
+                            logo.style.transform = `translate(${x}px, ${y}px)`;
+                            requestAnimationFrame(animate);
+                        }
+                        requestAnimationFrame(animate);
+                    }
+                },
+                {
+                    filename: `DEFRAG_${shortInst}.EXE`, title: `Otimizar Servidores: ${instName}`, color: '#c0c0c0',
+                    html: `<div class="flex flex-col h-full">
+                        <div class="mb-2 text-xs">A organizar a base de dados de ${instName}...</div>
+                        <div id="defrag-grid-${id}" class="bg-white border-2 border-inset border-gray-400 p-1 flex-grow overflow-hidden leading-none"></div>
+                    </div>`,
+                    init: () => {
+                        const grid = document.getElementById(`defrag-grid-${id}`);
+                        for(let i=0; i<150; i++) { grid.innerHTML += `<div class="defrag-block" id="block-${id}-${i}"></div>`; }
+                        let blocksDone = 0;
+                        let iv = setInterval(() => {
+                            if(blocksDone >= 150 || !document.getElementById(`defrag-grid-${id}`)) { clearInterval(iv); return; }
+                            let b = document.getElementById(`block-${id}-${blocksDone}`);
+                            if(b) b.style.backgroundColor = '#000080';
+                            blocksDone++;
+                        }, 50);
+                    }
+                },
+                {
+                    filename: `BUG_${shortInst}.EXE`, title: `Limpar Erros: ${instName}`, color: '#008080',
+                    html: `<div class="relative w-full h-full overflow-hidden">
+                        <div class="absolute text-white font-bold text-center w-full mt-2">Apanha os Erros na BD! Pontos: <span id="bug-score-${id}">0</span></div>
+                        <div id="the-bug-${id}" class="absolute bg-red-600 w-8 h-8 cursor-pointer shadow-md flex items-center justify-center" style="top:50px; left:50px;" onclick="smashBug_${fnId}()">🐞</div>
+                    </div>`,
+                    init: () => {
+                        let score = 0;
+                        window[`smashBug_${fnId}`] = () => {
+                            score++; 
+                            let sc = document.getElementById(`bug-score-${id}`);
+                            if(sc) sc.innerText = score;
+                            moveBug();
+                        };
+                        function moveBug() {
+                            const bug = document.getElementById(`the-bug-${id}`);
+                            if(!bug) return;
+                            bug.style.top = (Math.random() * 200 + 30) + 'px';
+                            bug.style.left = (Math.random() * 250 + 10) + 'px';
+                        }
+                        setInterval(moveBug, 800);
+                    }
+                },
+                {
+                    filename: `QUADRO_${shortInst}.EXE`, title: `Quadro Branco de ${instName}`, color: '#c0c0c0',
+                    html: `<div class="flex flex-col h-full">
+                        <div class="flex gap-2 mb-1"><button class="win-btn" onclick="clearCanvas_${fnId}()">Limpar Quadro</button></div>
+                        <canvas id="paint-cvs-${id}" class="bg-white border-2 border-inset border-gray-500 flex-grow w-full cursor-crosshair"></canvas>
+                    </div>`,
+                    init: () => {
+                        const canvas = document.getElementById(`paint-cvs-${id}`);
+                        if(!canvas) return;
+                        canvas.width = canvas.parentElement.clientWidth - 4;
+                        canvas.height = canvas.parentElement.clientHeight - 30;
+                        const ctx = canvas.getContext('2d');
+                        let drawing = false;
+                        canvas.onmousedown = (e) => { drawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); };
+                        canvas.onmousemove = (e) => { if(drawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } };
+                        canvas.onmouseup = () => drawing = false;
+                        canvas.onmouseleave = () => drawing = false;
+                        window[`clearCanvas_${fnId}`] = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                },
+                {
+                    filename: `ROLETA_${shortInst}.EXE`, title: `Júri da Tese: ${instName}`, color: '#c0c0c0',
+                    html: `<div class="flex flex-col items-center justify-center h-full gap-4 text-center">
+                        <p class="font-bold text-lg">O que acha o Júri da ${instName}?</p>
+                        <div id="roleta-result-${id}" class="bg-white border-2 border-inset border-gray-400 p-4 w-4/5 h-20 flex items-center justify-center font-bold text-red-600 text-xl shadow-inner text-center">...</div>
+                        <button class="win-btn px-6 py-2 text-sm" onclick="playRoleta_${fnId}()">Rodar a Sorte!</button>
+                    </div>`,
+                    init: () => {
+                        window[`playRoleta_${fnId}`] = () => {
+                            const options = ['Aprovado com Distinção!', 'Minor Revisions', 'Major Revisions', 'Chumbado. Volta pró ano!', 'O Orientador perdeu o PDF', 'Excelente Defesa'];
+                            let res = document.getElementById(`roleta-result-${id}`);
+                            if(!res) return;
+                            let count = 0;
+                            let interval = setInterval(() => {
+                                res.innerText = options[Math.floor(Math.random() * options.length)];
+                                count++;
+                                if(count > 15) { clearInterval(interval); res.innerText = options[Math.floor(Math.random() * options.length)]; }
+                            }, 50);
+                        }
+                    }
+                },
+                {
+                    filename: `MATRIX_${shortInst}.EXE`, title: `Matrix Alentejano (${instName})`, color: '#000',
+                    html: `<canvas id="matrix-cvs-${id}" class="w-full h-full"></canvas>`,
+                    init: () => {
+                        const canvas = document.getElementById(`matrix-cvs-${id}`);
+                        if(!canvas) return;
+                        canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight;
+                        const ctx = canvas.getContext('2d');
+                        const chars = '01HD_DATA_METADATA_CSV'.split('');
+                        const drops = []; for(let x=0; x<canvas.width/10; x++) drops[x]=1;
+                        let iv = setInterval(() => {
+                            if(!document.getElementById(`matrix-cvs-${id}`)) { clearInterval(iv); return; }
+                            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.fillStyle = '#0F0'; ctx.font = '10px VT323';
+                            for(let i=0; i<drops.length; i++) {
+                                let text = chars[Math.floor(Math.random()*chars.length)];
+                                ctx.fillText(text, i*10, drops[i]*10);
+                                if(drops[i]*10 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                                drops[i] += 0.8; 
+                            }
+                        }, 40);
+                    }
+                },
+                {
+                    filename: `ESCREVER_${shortInst}.EXE`, title: `Simulador de Artigos: ${shortInst}`, color: '#c0c0c0',
+                    html: `<div class="flex flex-col items-center justify-center h-full text-center p-4">
+                        <p class="font-bold text-lg mb-2">Palavras escritas: <span id="word-count-${id}" class="text-blue-700">0</span></p>
+                        <button class="win-btn px-6 py-4 text-sm font-bold shadow-md" onclick="writeWord_${fnId}()">Escrever Palavra</button>
+                        <p id="sim-status-${id}" class="mt-4 text-xs text-gray-600">A inspiração é fraca.</p>
+                    </div>`,
+                    init: () => {
+                        let w = 0;
+                        window[`writeWord_${fnId}`] = () => {
+                            w += Math.floor(Math.random() * 5) + 1;
+                            let wc = document.getElementById(`word-count-${id}`);
+                            let st = document.getElementById(`sim-status-${id}`);
+                            if(!wc || !st) return;
+                            wc.innerText = w;
+                            if(w > 20) st.innerText = "A fluir bem.";
+                            if(w > 50) st.innerText = "Quase um artigo!";
+                            if(w > 100) { st.innerText = `Aceite para publicação na ${instName}!`; st.style.color = 'green'; st.style.fontWeight = 'bold'; }
+                        }
+                    }
+                },
+                {
+                    filename: `HACK_${shortInst}.EXE`, title: `Bypass de Segurança: ${instName}`, color: '#000',
+                    html: `<div class="w-full h-full overflow-hidden p-2"><pre id="hacker-text-${id}" class="text-green-400 text-xs font-['VT323']"></pre></div>`,
+                    init: () => {
+                        const txt = document.getElementById(`hacker-text-${id}`);
+                        const cmds = [`> Ligando aos servidores de ${instName}...`, '> Extraindo metadados...', '> A descarregar PDF Oculto...', '> Ignorando privilégios...', '> SUCESSO: Documentos extraídos.'];
+                        let c = 0;
+                        let iv = setInterval(() => {
+                            if(!document.getElementById(`hacker-text-${id}`)) { clearInterval(iv); return; }
+                            txt.innerHTML += cmds[c] + '<br>';
+                            c++;
+                            if(c >= cmds.length) c = 0;
+                        }, 800);
+                    }
+                }
+            ];
+            
+            return allGames[index % 10];
+        }
+
+        function openGameWindow(gameData, instName, id) {
+            let win = createWindowBase(id, `C:\\Universidades\\${instName}\\${gameData.filename}`, 'fa-solid fa-gamepad text-purple-600', '400px', '320px', false, gameData.color);
+            if(!win) return;
+            const content = document.getElementById(`${id}-content`);
+            content.style.padding = '0';
+            content.innerHTML = gameData.html;
+            if(gameData.init) setTimeout(() => gameData.init(), 50);
+        }
+
+        // --- SISTEMA DE ARRASTAR JANELAS ---
+        function makeDraggable(elmnt, header) {
+            var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            header.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                e = e || window.event; e.preventDefault();
+                pos3 = e.clientX; pos4 = e.clientY;
+                document.onmouseup = closeDragElement; document.onmousemove = elementDrag;
+                bringToFront(elmnt.id);
+            }
+
+            function elementDrag(e) {
+                e = e || window.event; e.preventDefault();
+                pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+                pos3 = e.clientX; pos4 = e.clientY;
+                let newTop = elmnt.offsetTop - pos2;
+                if(newTop < 0) newTop = 0;
+                elmnt.style.top = newTop + "px"; elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+            }
+            function closeDragElement() { document.onmouseup = null; document.onmousemove = null; }
+        }
+    </script>
+</body>
+</html>
