@@ -148,7 +148,7 @@
         </div>
         <div class="mt-8 text-yellow-300">
             <p>Disk boot failure, insert system disk and press enter.</p>
-            <p class="mt-4 text-white">&gt;&gt;Arraste o ficheiro <span class="text-green-400">humanidades_digitais_def.csv</span> para aqui para iniciar o sistema operacional.</p>
+            <p class="mt-4 text-white">>> Arraste o ficheiro <span class="text-green-400">humanidades_digitais_def.csv</span> para aqui para iniciar o sistema operacional.</p>
         </div>
         <input type="file" id="file-input" accept=".csv" class="hidden">
         <div id="drop-zone" class="absolute inset-0 cursor-pointer"></div>
@@ -222,7 +222,6 @@
         const windowsList = {};
 
         function processDataAndBoot(rawData) {
-            // Toca o som de arranque do Windows 98
             bootSound.volume = 0.5;
             bootSound.play().catch(e => console.log('O navegador bloqueou o áudio automático.'));
 
@@ -372,63 +371,132 @@
             return win;
         }
 
-        // --- LÓGICA DE EXPLORADOR DE FICHEIROS ---
+        // --- LÓGICA DE EXPLORADOR DE FICHEIROS COM FILTROS ---
         function openFolderWindow(instName, docs, folderIndex) {
             let safeId = 'folder-' + instName.replace(/[^a-zA-Z0-9]/g, '');
-            // AUMENTADA A LARGURA E A ALTURA (750x500) PARA MELHOR VISUALIZAÇÃO
             let win = createWindowBase(safeId, `C:\\Universidades\\${instName}`, 'fa-solid fa-folder-open text-yellow-400', '750px', '500px', true);
             if(!win) return;
 
             const content = document.getElementById(`${safeId}-content`);
-            content.style.display = 'flex'; content.style.flexWrap = 'wrap'; content.style.alignContent = 'flex-start'; content.style.overflowY = 'auto';
+            // Retiramos o padding inicial para a barra de ferramentas ocupar toda a largura
+            content.style.padding = '0';
+            content.style.display = 'flex'; 
+            content.style.flexDirection = 'column';
 
-            // O JOGO (Geração Dinâmica de Dados)
+            // 1. Extrair os valores únicos (Anos e Tipologias) para esta pasta
+            let uniqueYears = [...new Set(docs.map(d => d.year))].filter(y => y !== 'S/D').sort((a,b) => b-a);
+            if(docs.some(d => d.year === 'S/D')) uniqueYears.push('S/D');
+            
+            let uniqueTypes = [...new Set(docs.map(d => d.type))].sort();
+
+            // 2. Criar a Barra de Ferramentas (Filtros)
+            const toolbar = document.createElement('div');
+            toolbar.className = 'bg-[#c0c0c0] flex gap-4 p-2 border-b border-gray-400 text-xs items-center';
+            toolbar.innerHTML = `
+                <div class="flex items-center gap-1">
+                    <span class="font-bold">Filtrar Ano:</span>
+                    <select id="filter-year-${safeId}" class="bg-white border-2 border-inset border-gray-400 p-0.5 outline-none cursor-pointer">
+                        <option value="ALL">Todos os Anos</option>
+                        ${uniqueYears.map(y => `<option value="${y}">${y}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="flex items-center gap-1">
+                    <span class="font-bold">Tipologia:</span>
+                    <select id="filter-type-${safeId}" class="bg-white border-2 border-inset border-gray-400 p-0.5 outline-none max-w-[200px] truncate cursor-pointer">
+                        <option value="ALL">Todas as Tipologias</option>
+                        ${uniqueTypes.map(t => `<option value="${t}">${t}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="ml-auto text-gray-700">
+                    A mostrar: <span id="count-${safeId}">${docs.length}</span> objetos
+                </div>
+            `;
+            content.appendChild(toolbar);
+
+            // 3. Criar a área onde os ícones vão aparecer
+            const iconArea = document.createElement('div');
+            iconArea.className = 'flex flex-wrap content-start overflow-y-auto p-2 flex-grow bg-white';
+            content.appendChild(iconArea);
+
+            // O JOGO (Falso .EXE)
             let gameIndex = folderIndex % 10;
             let rawGameId = 'game-' + gameIndex + '-' + instName.replace(/[^a-zA-Z0-9]/g, '');
             let gameData = getGameData(gameIndex, instName, rawGameId);
-            
-            let gameIcon = document.createElement('div');
-            gameIcon.className = 'file-icon border border-transparent hover:border-gray-300';
-            gameIcon.innerHTML = `
-                <i class="fa-solid fa-microchip text-4xl text-purple-700 mb-1 drop-shadow-sm"></i>
-                <span class="icon-text font-bold !text-blue-900">${gameData.filename}</span>
-            `;
-            let clicks = 0;
-            gameIcon.onclick = () => {
-                clicks++;
-                if (clicks === 1) { setTimeout(() => { clicks = 0; }, 400); } 
-                else { openGameWindow(gameData, instName, rawGameId); clicks = 0; }
-            };
-            content.appendChild(gameIcon);
 
-            // Documentos
-            const docsToShow = docs.slice(0, 150);
-            docsToShow.forEach(doc => {
-                let iconEl = document.createElement('div');
-                iconEl.className = 'file-icon';
-                
-                let fileIconClass = 'fa-solid fa-file-lines text-blue-600';
-                let typeLower = doc.type.toLowerCase();
-                if(typeLower.includes('tese') || typeLower.includes('disserta')) fileIconClass = 'fa-solid fa-book text-red-800';
-                if(typeLower.includes('livro')) fileIconClass = 'fa-solid fa-file-pdf text-red-500';
+            // 4. Função que desenha os ícones tendo em conta os filtros
+            function renderIcons() {
+                iconArea.innerHTML = ''; // Limpa a área
 
-                let shortTitle = doc.title.substring(0, 25) + '...';
-                iconEl.innerHTML = `<i class="${fileIconClass} text-3xl mb-1"></i><span class="icon-text">${shortTitle}</span>`;
-
-                let dClicks = 0;
-                iconEl.onclick = () => {
-                    dClicks++;
-                    if (dClicks === 1) { setTimeout(() => { dClicks = 0; }, 400); } 
-                    else { openNotepad('doc-' + doc.id, doc.title, formatAbstract(doc)); dClicks = 0; }
+                // Renderiza o JOGO (Fica sempre fixo no topo independentemente do filtro)
+                let gameIcon = document.createElement('div');
+                gameIcon.className = 'file-icon border border-transparent hover:border-gray-300';
+                gameIcon.innerHTML = `
+                    <i class="fa-solid fa-microchip text-4xl text-purple-700 mb-1 drop-shadow-sm"></i>
+                    <span class="icon-text font-bold !text-blue-900">${gameData.filename}</span>
+                `;
+                let clicks = 0;
+                gameIcon.onclick = () => {
+                    clicks++;
+                    if (clicks === 1) { setTimeout(() => { clicks = 0; }, 400); } 
+                    else { openGameWindow(gameData, instName, rawGameId); clicks = 0; }
                 };
-                content.appendChild(iconEl);
-            });
+                iconArea.appendChild(gameIcon);
 
-            if(docs.length > 150) {
-                let msg = document.createElement('p'); msg.className = 'w-full text-xs text-gray-500 p-2 font-bold';
-                msg.innerText = `+ Mostrando 150 de ${docs.length} objetos (Para poupar RAM).`;
-                content.appendChild(msg);
+                // Ler os valores dos filtros
+                const selYear = document.getElementById(`filter-year-${safeId}`).value;
+                const selType = document.getElementById(`filter-type-${safeId}`).value;
+
+                // Filtrar os documentos
+                let filteredDocs = docs.filter(d => {
+                    let matchYear = (selYear === 'ALL') || (d.year == selYear);
+                    let matchType = (selType === 'ALL') || (d.type === selType);
+                    return matchYear && matchType;
+                });
+
+                // Atualizar o contador no topo
+                document.getElementById(`count-${safeId}`).innerText = filteredDocs.length;
+
+                // Documentos a mostrar (Limite de 150 para performance)
+                const docsToShow = filteredDocs.slice(0, 150);
+                
+                docsToShow.forEach(doc => {
+                    let iconEl = document.createElement('div');
+                    iconEl.className = 'file-icon';
+                    
+                    let fileIconClass = 'fa-solid fa-file-lines text-blue-600';
+                    let typeLower = doc.type.toLowerCase();
+                    if(typeLower.includes('tese') || typeLower.includes('disserta')) fileIconClass = 'fa-solid fa-book text-red-800';
+                    if(typeLower.includes('livro')) fileIconClass = 'fa-solid fa-file-pdf text-red-500';
+
+                    let shortTitle = doc.title.substring(0, 25) + '...';
+                    iconEl.innerHTML = `<i class="${fileIconClass} text-3xl mb-1"></i><span class="icon-text">${shortTitle}</span>`;
+
+                    let dClicks = 0;
+                    iconEl.onclick = () => {
+                        dClicks++;
+                        if (dClicks === 1) { setTimeout(() => { dClicks = 0; }, 400); } 
+                        else { openNotepad('doc-' + doc.id, doc.title, formatAbstract(doc)); dClicks = 0; }
+                    };
+                    iconArea.appendChild(iconEl);
+                });
+
+                if(filteredDocs.length > 150) {
+                    let msg = document.createElement('p'); msg.className = 'w-full text-xs text-gray-500 p-2 font-bold';
+                    msg.innerText = `+ Mostrando 150 de ${filteredDocs.length} objetos correspondentes.`;
+                    iconArea.appendChild(msg);
+                } else if (filteredDocs.length === 0) {
+                    let msg = document.createElement('p'); msg.className = 'w-full text-xs text-gray-500 p-4 font-bold text-center italic';
+                    msg.innerText = 'A pesquisa não devolveu ficheiros para os filtros selecionados.';
+                    iconArea.appendChild(msg);
+                }
             }
+
+            // Atribuir os eventos de mudança aos menus dropdown para renderizarem automaticamente
+            document.getElementById(`filter-year-${safeId}`).addEventListener('change', renderIcons);
+            document.getElementById(`filter-type-${safeId}`).addEventListener('change', renderIcons);
+
+            // Renderização Inicial
+            renderIcons();
         }
 
         // --- BLOCO DE NOTAS ---
@@ -462,8 +530,6 @@ ${doc.abstract}
         // --- DEFINIÇÃO DOS 10 JOGOS / APLICATIVOS CREATIVOS (GERADOS DINAMICAMENTE) ---
         function getGameData(index, instName, id) {
             const shortInst = instName.substring(0, 10).toUpperCase().replace(/\s/g, '_');
-            
-            // CORREÇÃO DOS EVENTOS: Substituir hífenes e caracteres não alfanuméricos por sublinhados para os nomes das funções JS globais
             const fnId = id.replace(/[^a-zA-Z0-9]/g, '_'); 
 
             const allGames = [
@@ -479,7 +545,6 @@ ${doc.abstract}
                         let safeClicked = 0;
                         let gameOver = false;
                         
-                        // Plantar 5 minas
                         while(mines.length < 5) {
                             let r = Math.floor(Math.random() * 25);
                             if(mines.indexOf(r) === -1) mines.push(r);
@@ -495,7 +560,6 @@ ${doc.abstract}
                                 document.getElementById(`mina-msg-${id}`).innerText = 'BUM! Chumbaste na Cadeira!';
                                 document.getElementById(`mina-msg-${id}`).style.color = 'red';
                                 gameOver = true;
-                                // Revelar todas as minas
                                 mines.forEach(m => {
                                     let b = document.getElementById(`btn-${id}-${m}`);
                                     b.innerHTML = '💣'; b.style.backgroundColor = 'red';
@@ -505,7 +569,6 @@ ${doc.abstract}
                                 btn.style.border = '1px solid #fff';
                                 btn.disabled = true;
                                 safeClicked++;
-                                // Condição de Vitória (Clicou nas 20 casas seguras)
                                 if(safeClicked === 20) {
                                     document.getElementById(`mina-msg-${id}`).innerText = 'Parabéns! Concluíste o curso!';
                                     document.getElementById(`mina-msg-${id}`).style.color = 'green';
@@ -514,7 +577,6 @@ ${doc.abstract}
                             }
                         };
                         
-                        // Gerar Grelha 5x5
                         for(let i=0; i<25; i++) {
                             grid.innerHTML += `<button class="w-8 h-8 font-bold text-black border-2 border-outset border-white bg-gray-300 cursor-pointer flex justify-center items-center" id="btn-${id}-${i}" onclick="clickMina_${fnId}(${i})"></button>`;
                         }
@@ -539,7 +601,6 @@ ${doc.abstract}
                         window[`galoClick_${fnId}`] = (i) => {
                             if(cells[i].innerText !== '' || gameOver) return;
                             
-                            // Jogada do Jogador
                             cells[i].innerText = 'X';
                             cells[i].style.color = 'blue';
                             
@@ -557,7 +618,6 @@ ${doc.abstract}
                             
                             document.getElementById(`galo-msg-${id}`).innerText = 'O Reitor está a pensar...';
                             
-                            // Jogada da Máquina (Reitor)
                             setTimeout(() => {
                                 if(gameOver) return;
                                 empty = cells.filter(c => c.innerText === '');
